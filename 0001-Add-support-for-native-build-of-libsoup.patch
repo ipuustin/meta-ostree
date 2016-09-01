@@ -1,0 +1,48 @@
+From d238ed8878012d6b820125e6e69d17987aa04ad9 Mon Sep 17 00:00:00 2001
+From: Igor Stoppa <igor.stoppa@intel.com>
+Date: Thu, 1 Sep 2016 16:54:32 +0300
+Subject: [PATCH] Add support for native build of libsoup
+
+Code from Ismo Puustinen <ismo.puustinen@intel.com>
+
+Signed-off-by: Igor Stoppa <igor.stoppa@intel.com>
+---
+ meta/recipes-core/glib-networking/glib-networking_2.48.2.bb | 2 ++
+ meta/recipes-support/gpgme/gpgme_1.6.0.bb                   | 2 ++
+ meta/recipes-support/libsoup/libsoup-2.4_2.54.1.bb          | 3 +++
+ 3 files changed, 7 insertions(+)
+
+diff --git a/meta/recipes-core/glib-networking/glib-networking_2.48.2.bb b/meta/recipes-core/glib-networking/glib-networking_2.48.2.bb
+index 50d9983..4e656c8 100644
+--- a/meta/recipes-core/glib-networking/glib-networking_2.48.2.bb
++++ b/meta/recipes-core/glib-networking/glib-networking_2.48.2.bb
+@@ -27,3 +27,5 @@ inherit gnomebase gettext upstream-version-is-even gio-module-cache
+ FILES_${PN} += "${libdir}/gio/modules/libgio*.so ${datadir}/dbus-1/services/"
+ FILES_${PN}-dev += "${libdir}/gio/modules/libgio*.la"
+ FILES_${PN}-staticdev += "${libdir}/gio/modules/libgio*.a"
++
++BBCLASSEXTEND = "native"
+diff --git a/meta/recipes-support/gpgme/gpgme_1.6.0.bb b/meta/recipes-support/gpgme/gpgme_1.6.0.bb
+index a2d0587..4dbae55 100644
+--- a/meta/recipes-support/gpgme/gpgme_1.6.0.bb
++++ b/meta/recipes-support/gpgme/gpgme_1.6.0.bb
+@@ -39,3 +39,5 @@ do_install_append () {
+         install -d ${D}${libdir}/pkgconfig
+         install -m 0644 ${WORKDIR}/gpgme.pc ${D}${libdir}/pkgconfig/
+ }
++
++BBCLASSEXTEND = "native"
+diff --git a/meta/recipes-support/libsoup/libsoup-2.4_2.54.1.bb b/meta/recipes-support/libsoup/libsoup-2.4_2.54.1.bb
+index f243cbc..d4b059e 100644
+--- a/meta/recipes-support/libsoup/libsoup-2.4_2.54.1.bb
++++ b/meta/recipes-support/libsoup/libsoup-2.4_2.54.1.bb
+@@ -33,3 +33,6 @@ DEBIAN_NOAUTONAME_${PN} = "1"
+ 
+ # glib-networking is needed for SSL, proxies, etc.
+ RRECOMMENDS_${PN} = "glib-networking"
++
++BBCLASSEXTEND = "native"
++DEPENDS += "glib-networking"
+-- 
+2.6.6
+
