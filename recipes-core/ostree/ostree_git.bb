@@ -15,15 +15,20 @@ SRC_URI = " \
 S = "${WORKDIR}/git"
 
 do_configure_prepend() {
-    pushd ${S}
-    NOCONFIGURE=1 ./autogen.sh
-    popd
+    rm -f ${S}/gtk-doc.make
+    cat > ${S}/gtk-doc.make <<EOF
+EXTRA_DIST =
+CLEANFILES =
+EOF
+
+    sed -e 's,$(libglnx_srcpath),libglnx,g' < ${S}/libglnx/Makefile-libglnx.am > ${S}/libglnx/Makefile-libglnx.am.inc
+    sed -e 's,$(libbsdiff_srcpath),bsdiff,g' < ${S}/bsdiff/Makefile-bsdiff.am > ${S}/bsdiff/Makefile-bsdiff.am.inc
 }
 
 SYSTEMD_SERVICE_${PN} = "ostree-prepare-root.service ostree-remount.service"
 
 EXTRA_OECONF_class-target += "--enable-man=no --enable-rofiles-fuse=no"
-DEPENDS_class-target += "gpgme glib-2.0 zlib xz e2fsprogs libcap libsoup-2.4 gobject-introspection systemd"
+DEPENDS_class-target += "gpgme glib-2.0 zlib xz e2fsprogs libcap libsoup-2.4 gobject-introspection"
 
 # Fuse is in meta-openembedded, and does not support native builds by
 # default -- uncomment only if fuse-based optimization needed.
