@@ -10,6 +10,7 @@ SRCREV = "5893b68ef76b10fc4267faa09d27588f2594b2f6"
 
 SRC_URI = " \
     gitsm://github.com/ostreedev/ostree;protocol=https \
+    file://0001-Added-EFI-boot-loader-support-skeleton.patch \
 "
 
 S = "${WORKDIR}/git"
@@ -29,7 +30,6 @@ SYSTEMD_SERVICE_${PN} = "ostree-prepare-root.service ostree-remount.service"
 
 EXTRA_OECONF_class-target += "--enable-man=no --enable-rofiles-fuse=no"
 DEPENDS_class-target += "gpgme glib-2.0 zlib xz e2fsprogs libsoup-2.4 gobject-introspection efivar"
-
 
 # Fuse is in meta-openembedded, and does not support native builds by
 # default -- uncomment only if fuse-based optimization needed.

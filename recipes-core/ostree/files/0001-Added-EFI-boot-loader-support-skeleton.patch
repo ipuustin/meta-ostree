@@ -1,0 +1,342 @@
+From bc44a5e1329a044cd7534bf4ac26ebfb0a8f63aa Mon Sep 17 00:00:00 2001
+From: Ismo Puustinen <ismo.puustinen@intel.com>
+Date: Thu, 8 Sep 2016 14:13:31 +0300
+Subject: [PATCH] Added EFI boot loader support skeleton.
+
+---
+ Makefile-libostree.am                     |   6 ++
+ Makefile-otutil.am                        |   2 +
+ Makefile-tests.am                         |   2 +
+ configure.ac                              |   6 +-
+ src/libostree/ostree-bootloader-efiblob.c | 173 ++++++++++++++++++++++++++++++
+ src/libostree/ostree-bootloader-efiblob.h |  40 +++++++
+ src/libostree/ostree-sysroot.c            |   8 ++
+ 7 files changed, 236 insertions(+), 1 deletion(-)
+ create mode 100644 src/libostree/ostree-bootloader-efiblob.c
+ create mode 100644 src/libostree/ostree-bootloader-efiblob.h
+
+diff --git a/Makefile-libostree.am b/Makefile-libostree.am
+index 0be60a1..92aa073 100644
+--- a/Makefile-libostree.am
++++ b/Makefile-libostree.am
+@@ -114,6 +114,8 @@ libostree_1_la_SOURCES = \
+ 	src/libostree/ostree-deployment.c \
+ 	src/libostree/ostree-bootloader.h \
+ 	src/libostree/ostree-bootloader.c \
++	src/libostree/ostree-bootloader-efiblob.h \
++	src/libostree/ostree-bootloader-efiblob.c \
+ 	src/libostree/ostree-bootloader-grub2.h \
+ 	src/libostree/ostree-bootloader-grub2.c \
+ 	src/libostree/ostree-bootloader-syslinux.h \
+@@ -183,6 +185,10 @@ libostree_1_la_CFLAGS += $(OT_DEP_SELINUX_CFLAGS)
+ libostree_1_la_LIBADD += $(OT_DEP_SELINUX_LIBS)
+ endif
+ 
++# efiboot support
++libostree_1_la_CFLAGS += $(EFIVAR_CFLAGS) $(EFIBOOT_CFLAGS)
++libostree_1_la_LIBADD += $(EFIVAR_LIBS) $(EFIBOOT_LIBS)
++
+ if BUILDOPT_INTROSPECTION
+ OSTree-1.0.gir: libostree-1.la Makefile
+ OSTree_1_0_gir_EXPORT_PACKAGES = ostree-1
+diff --git a/Makefile-otutil.am b/Makefile-otutil.am
+index ee892a7..ee38fcd 100644
+--- a/Makefile-otutil.am
++++ b/Makefile-otutil.am
+@@ -47,3 +47,5 @@ libotutil_la_SOURCES = \
+ 	$(NULL)
+ libotutil_la_CFLAGS = $(AM_CFLAGS) -I$(srcdir)/libglnx -I$(srcdir)/src/libotutil -DLOCALEDIR=\"$(datadir)/locale\" $(OT_INTERNAL_GIO_UNIX_CFLAGS) $(OT_INTERNAL_GPGME_CFLAGS) $(LIBSYSTEMD_CFLAGS)
+ libotutil_la_LIBADD = $(OT_INTERNAL_GIO_UNIX_LIBS) $(OT_INTERNAL_GPGME_LIBS) $(LIBSYSTEMD_LIBS)
++
++libotutil_la_LIBADD += $(EFIVAR_LIBS) $(EFIBOOT_LIBS)
+diff --git a/Makefile-tests.am b/Makefile-tests.am
+index 7d3f401..570d0fa 100644
+--- a/Makefile-tests.am
++++ b/Makefile-tests.am
+@@ -167,6 +167,8 @@ endif
+ common_tests_cflags = $(ostree_bin_shared_cflags) $(OT_INTERNAL_GIO_UNIX_CFLAGS) -I$(srcdir)/libglnx
+ common_tests_ldadd = $(ostree_bin_shared_ldadd) $(OT_INTERNAL_GIO_UNIX_LIBS)
+ 
++common_tests_ldadd += $(EFIVAR_LIBS)
++
+ noinst_LTLIBRARIES += libostreetest.la
+ libostreetest_la_SOURCES = tests/libostreetest.c
+ libostreetest_la_CFLAGS = $(common_tests_cflags) -I $(srcdir)/tests
+diff --git a/configure.ac b/configure.ac
+index b739d2a..44d286c 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -30,7 +30,6 @@ CC_CHECK_FLAGS_APPEND([WARN_CFLAGS], [CFLAGS], [\
+         -Werror=overflow \
+         -Werror=int-conversion \
+ 	-Werror=missing-include-dirs -Werror=aggregate-return \
+-	-Werror=declaration-after-statement \
+ ])
+ AC_SUBST(WARN_CFLAGS)
+ 
+@@ -67,6 +66,11 @@ PKG_CHECK_MODULES(OT_DEP_ZLIB, zlib)
+ dnl We're not actually linking to this, just using the header
+ PKG_CHECK_MODULES(OT_DEP_E2P, e2p)
+ 
++dnl Efiboot is needed for support to direct booting to different EFI partitions
++dnl from a UEFI BIOS. TODO: make optional
++PKG_CHECK_MODULES(EFIVAR, efivar)
++PKG_CHECK_MODULES(EFIBOOT, efiboot)
++
+ dnl When bumping the libsoup-2.4 dependency, remember to bump
+ dnl SOUP_VERSION_MIN_REQUIRED and SOUP_VERSION_MAX_ALLOWED in
+ dnl Makefile.am
+diff --git a/src/libostree/ostree-bootloader-efiblob.c b/src/libostree/ostree-bootloader-efiblob.c
+new file mode 100644
+index 0000000..700f518
+--- /dev/null
++++ b/src/libostree/ostree-bootloader-efiblob.c
+@@ -0,0 +1,173 @@
++/* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*-
++ *
++ * Copyright (C) 2013 Colin Walters <walters@verbum.org>
++ * Copyright (C) 2016 Intel Corp.
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; either version 2 of the licence or (at
++ * your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General
++ * Public License along with this library; if not, write to the
++ * Free Software Foundation, Inc., 59 Temple Place, Suite 330,
++ * Boston, MA 02111-1307, USA.
++ */
++
++#include "config.h"
++
++#include "ostree-sysroot-private.h"
++#include "ostree-bootloader-efiblob.h"
++#include "otutil.h"
++
++struct _OstreeBootloaderEfiblob
++{
++  GObject       parent_instance;
++
++  OstreeSysroot  *sysroot;
++};
++
++typedef GObjectClass OstreeBootloaderEfiblobClass;
++
++static void _ostree_bootloader_efiblob_bootloader_iface_init (OstreeBootloaderInterface *iface);
++G_DEFINE_TYPE_WITH_CODE (OstreeBootloaderEfiblob, _ostree_bootloader_efiblob, G_TYPE_OBJECT,
++                         G_IMPLEMENT_INTERFACE (OSTREE_TYPE_BOOTLOADER, _ostree_bootloader_efiblob_bootloader_iface_init));
++
++static gboolean
++_ostree_bootloader_efiblob_query (OstreeBootloader *bootloader,
++                                gboolean         *out_is_active,
++                                GCancellable     *cancellable,
++                                GError          **error)
++{
++  OstreeBootloaderEfiblob *self = OSTREE_BOOTLOADER_EFIBLOB (bootloader);
++
++  /* TODO: set "out_is_active" to true if we are using the EFI blob method for
++   * system boot.
++   */
++
++  *out_is_active = TRUE;
++  return TRUE;
++}
++
++static const char *
++_ostree_bootloader_efiblob_get_name (OstreeBootloader *bootloader)
++{
++  return "EfiBlob";
++}
++
++static gboolean
++_ostree_bootloader_efiblob_write_config (OstreeBootloader          *bootloader,
++                                  int                    bootversion,
++                                  GCancellable          *cancellable,
++                                  GError               **error)
++{
++  /* The EFI blobs are immutable (possibly signed) and have come to us from the
++   * initial image or from the update mechanism. There is no need to construct
++   * anything -- just move the correct partition to the head of the boot order
++   * for the next boot. After successful bootup, a helper binary will be run to
++   * finalize the boot order. */
++
++  OstreeBootloaderEfiblob *self = OSTREE_BOOTLOADER_EFIBLOB (bootloader);
++  char *variable = NULL;
++  efi_guid_t *guid = NULL;
++  int arg = bootversion;
++  char target_label[20] = { 0 };
++
++  if (!efi_variables_supported())
++    return FALSE;
++
++  /* Query boot targets, see their names, and boot to the one that is named
++   * ostree-$bootversion. According to atomic-upgrades.md, bootversion is
++   * always either 0 or 1. */
++
++  snprintf(target_label, sizeof(target_label), "ostree-%u", arg);
++
++  /* go through all variables to find the boot-related ones */
++
++  /* TODO: do this in two passes. First find out what's the current boot disk
++   * UUID, then consider only the partitions present in that disk. */
++
++  while (efi_get_next_variable_name(&guid, &variable)) {
++
++    if (strncmp(variable, "Boot", 4) == 0 && strlen(variable) == 8) {
++      char *buf, *endptr = NULL;
++      size_t bufsize;
++      int r;
++      uint16_t num;
++      uint32_t attributes = EFI_VARIABLE_RUNTIME_ACCESS |
++            EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_NON_VOLATILE;
++
++      num = strtoul(variable + 4, &endptr, 16);
++
++      if (endptr == variable + 4 || *endptr != '\0')
++        continue;
++
++      r = efi_get_variable(EFI_GLOBAL_GUID, variable, (uint8_t **) &buf,
++          &bufsize, &attributes);
++      if (r != 0)
++        continue;
++
++      efi_load_option *opt = (efi_load_option *) buf;
++      /* printf("description (%u): '%s'\n", num, efi_loadopt_desc(opt)); */
++
++      if (strcmp((const char *) efi_loadopt_desc(opt), target_label) == 0) {
++        /* boot next to the found target */
++        r = efi_set_variable(EFI_GLOBAL_GUID, "BootNext", (uint8_t *) &num,
++            sizeof(num), attributes);
++        if (r != 0) {
++          /* we can't set the boot target for some reason, this is bad */
++          /* printf("error setting variable: %s\n", strerror(errno)); */
++          free(buf);
++          return FALSE;
++        }
++      }
++      free(buf);
++    }
++  }
++
++  return TRUE;
++}
++
++static void
++_ostree_bootloader_efiblob_finalize (GObject *object)
++{
++  OstreeBootloaderEfiblob *self = OSTREE_BOOTLOADER_EFIBLOB (object);
++
++  g_clear_object (&self->sysroot);
++
++  G_OBJECT_CLASS (_ostree_bootloader_efiblob_parent_class)->finalize (object);
++}
++
++void
++_ostree_bootloader_efiblob_init (OstreeBootloaderEfiblob *self)
++{
++}
++
++static void
++_ostree_bootloader_efiblob_bootloader_iface_init (OstreeBootloaderInterface *iface)
++{
++  iface->query = _ostree_bootloader_efiblob_query;
++  iface->get_name = _ostree_bootloader_efiblob_get_name;
++  iface->write_config = _ostree_bootloader_efiblob_write_config;
++}
++
++void
++_ostree_bootloader_efiblob_class_init (OstreeBootloaderEfiblobClass *class)
++{
++  GObjectClass *object_class = G_OBJECT_CLASS (class);
++
++  object_class->finalize = _ostree_bootloader_efiblob_finalize;
++}
++
++OstreeBootloaderEfiblob *
++_ostree_bootloader_efiblob_new (OstreeSysroot *sysroot)
++{
++  OstreeBootloaderEfiblob *self = g_object_new (OSTREE_TYPE_BOOTLOADER_EFIBLOB, NULL);
++  self->sysroot = g_object_ref (sysroot);
++  return self;
++}
+diff --git a/src/libostree/ostree-bootloader-efiblob.h b/src/libostree/ostree-bootloader-efiblob.h
+new file mode 100644
+index 0000000..4900187
+--- /dev/null
++++ b/src/libostree/ostree-bootloader-efiblob.h
+@@ -0,0 +1,40 @@
++/* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*-
++ *
++ * Copyright (C) 2014 Colin Walters <walters@verbum.org>
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; either version 2 of the licence or (at
++ * your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General
++ * Public License along with this library; if not, write to the
++ * Free Software Foundation, Inc., 59 Temple Place, Suite 330,
++ * Boston, MA 02111-1307, USA.
++ */
++
++#pragma once
++
++#include <efivar.h>
++#include <efiboot-loadopt.h>
++
++#include "ostree-bootloader.h"
++
++G_BEGIN_DECLS
++
++#define OSTREE_TYPE_BOOTLOADER_EFIBLOB (_ostree_bootloader_efiblob_get_type ())
++#define OSTREE_BOOTLOADER_EFIBLOB(inst) (G_TYPE_CHECK_INSTANCE_CAST ((inst), OSTREE_TYPE_BOOTLOADER_EFIBLOB, OstreeBootloaderEfiblob))
++#define OSTREE_IS_BOOTLOADER_EFIBLOB(inst) (G_TYPE_CHECK_INSTANCE_TYPE ((inst), OSTREE_TYPE_BOOTLOADER_EFIBLOB))
++
++typedef struct _OstreeBootloaderEfiblob OstreeBootloaderEfiblob;
++
++GType _ostree_bootloader_efiblob_get_type (void) G_GNUC_CONST;
++
++OstreeBootloaderEfiblob * _ostree_bootloader_efiblob_new (OstreeSysroot *sysroot);
++
++G_END_DECLS
+diff --git a/src/libostree/ostree-sysroot.c b/src/libostree/ostree-sysroot.c
+index 37063e2..2612807 100644
+--- a/src/libostree/ostree-sysroot.c
++++ b/src/libostree/ostree-sysroot.c
+@@ -28,6 +28,7 @@
+ #include "ostree-bootloader-uboot.h"
+ #include "ostree-bootloader-syslinux.h"
+ #include "ostree-bootloader-grub2.h"
++#include "ostree-bootloader-efiblob.h"
+ 
+ static gboolean
+ find_booted_deployment (OstreeSysroot       *self,
+@@ -1088,6 +1089,13 @@ _ostree_sysroot_query_bootloader (OstreeSysroot     *sysroot,
+         goto out;
+     }
+   if (!is_active)
++    {
++      g_object_unref (ret_loader);
++      ret_loader = (OstreeBootloader*)_ostree_bootloader_efiblob_new (sysroot);
++      if (!_ostree_bootloader_query (ret_loader, &is_active, cancellable, error))
++        goto out;
++    }
++  if (!is_active)
+     g_clear_object (&ret_loader);
+ 
+   ret = TRUE;
+-- 
+2.7.4
+
