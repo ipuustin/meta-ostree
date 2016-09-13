@@ -1,0 +1,136 @@
+From e68184ecd53f0f4a64bf92b68922bcb472d392c2 Mon Sep 17 00:00:00 2001
+From: Ismo Puustinen <ismo.puustinen@intel.com>
+Date: Tue, 13 Sep 2016 16:55:45 +0300
+Subject: [PATCH 3/3] Use autoconf to make efivar optional.
+
+---
+ Makefile-libostree.am          | 10 ++++++++--
+ Makefile-otutil.am             |  2 ++
+ Makefile-tests.am              |  2 ++
+ configure.ac                   | 16 ++++++++++++----
+ src/libostree/ostree-sysroot.c |  4 ++++
+ 5 files changed, 28 insertions(+), 6 deletions(-)
+
+diff --git a/Makefile-libostree.am b/Makefile-libostree.am
+index 92aa073..212e8ec 100644
+--- a/Makefile-libostree.am
++++ b/Makefile-libostree.am
+@@ -114,8 +114,6 @@ libostree_1_la_SOURCES = \
+ 	src/libostree/ostree-deployment.c \
+ 	src/libostree/ostree-bootloader.h \
+ 	src/libostree/ostree-bootloader.c \
+-	src/libostree/ostree-bootloader-efiblob.h \
+-	src/libostree/ostree-bootloader-efiblob.c \
+ 	src/libostree/ostree-bootloader-grub2.h \
+ 	src/libostree/ostree-bootloader-grub2.c \
+ 	src/libostree/ostree-bootloader-syslinux.h \
+@@ -144,6 +142,12 @@ libostree_1_la_SOURCES += \
+ 	src/libostree/ostree-tls-cert-interaction.h \
+ 	$(NULL)
+ endif
++if USE_EFIVAR
++libostree_1_la_SOURCES += \
++	src/libostree/ostree-bootloader-efiblob.h \
++	src/libostree/ostree-bootloader-efiblob.c \
++	$(NULL)
++endif
+ 
+ libostree_1_la_CFLAGS = $(AM_CFLAGS) -I$(srcdir)/bsdiff -I$(srcdir)/libglnx -I$(srcdir)/src/libotutil -I$(srcdir)/src/libostree -I$(builddir)/src/libostree \
+ 	$(OT_INTERNAL_GIO_UNIX_CFLAGS) $(OT_INTERNAL_GPGME_CFLAGS) $(OT_DEP_LZMA_CFLAGS) $(OT_DEP_ZLIB_CFLAGS) \
+@@ -185,9 +189,11 @@ libostree_1_la_CFLAGS += $(OT_DEP_SELINUX_CFLAGS)
+ libostree_1_la_LIBADD += $(OT_DEP_SELINUX_LIBS)
+ endif
+ 
++if USE_EFIVAR
+ # efiboot support
+ libostree_1_la_CFLAGS += $(EFIVAR_CFLAGS) $(EFIBOOT_CFLAGS)
+ libostree_1_la_LIBADD += $(EFIVAR_LIBS) $(EFIBOOT_LIBS)
++endif
+ 
+ if BUILDOPT_INTROSPECTION
+ OSTree-1.0.gir: libostree-1.la Makefile
+diff --git a/Makefile-otutil.am b/Makefile-otutil.am
+index ee38fcd..5fd494d 100644
+--- a/Makefile-otutil.am
++++ b/Makefile-otutil.am
+@@ -48,4 +48,6 @@ libotutil_la_SOURCES = \
+ libotutil_la_CFLAGS = $(AM_CFLAGS) -I$(srcdir)/libglnx -I$(srcdir)/src/libotutil -DLOCALEDIR=\"$(datadir)/locale\" $(OT_INTERNAL_GIO_UNIX_CFLAGS) $(OT_INTERNAL_GPGME_CFLAGS) $(LIBSYSTEMD_CFLAGS)
+ libotutil_la_LIBADD = $(OT_INTERNAL_GIO_UNIX_LIBS) $(OT_INTERNAL_GPGME_LIBS) $(LIBSYSTEMD_LIBS)
+ 
++if USE_EFIVAR
+ libotutil_la_LIBADD += $(EFIVAR_LIBS) $(EFIBOOT_LIBS)
++endif
+diff --git a/Makefile-tests.am b/Makefile-tests.am
+index 570d0fa..9b9c95a 100644
+--- a/Makefile-tests.am
++++ b/Makefile-tests.am
+@@ -167,7 +167,9 @@ endif
+ common_tests_cflags = $(ostree_bin_shared_cflags) $(OT_INTERNAL_GIO_UNIX_CFLAGS) -I$(srcdir)/libglnx
+ common_tests_ldadd = $(ostree_bin_shared_ldadd) $(OT_INTERNAL_GIO_UNIX_LIBS)
+ 
++if USE_EFIVAR
+ common_tests_ldadd += $(EFIVAR_LIBS)
++endif
+ 
+ noinst_LTLIBRARIES += libostreetest.la
+ libostreetest_la_SOURCES = tests/libostreetest.c
+diff --git a/configure.ac b/configure.ac
+index 44d286c..b79ecc9 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -66,10 +66,18 @@ PKG_CHECK_MODULES(OT_DEP_ZLIB, zlib)
+ dnl We're not actually linking to this, just using the header
+ PKG_CHECK_MODULES(OT_DEP_E2P, e2p)
+ 
+-dnl Efiboot is needed for support to direct booting to different EFI partitions
+-dnl from a UEFI BIOS. TODO: make optional
+-PKG_CHECK_MODULES(EFIVAR, efivar)
+-PKG_CHECK_MODULES(EFIBOOT, efiboot)
++dnl Efiblob is for direct booting to different EFI partitions from a
++dnl UEFI BIOS.
++
++AC_ARG_WITH([efiblob], AS_HELP_STRING([--with-efiblob], [Support EFI Blob for boot loader]),
++	    [], [with_efiblob=check])
++AS_IF([test x$with_efiblob = xyes], [
++    PKG_CHECK_MODULES(EFIVAR, efivar >= 0.27)
++    PKG_CHECK_MODULES(EFIBOOT, efiboot >= 0.27)
++    AC_DEFINE([HAVE_EFIVAR], [1], [Have efivar library installed])
++    ],
++    [])
++AM_CONDITIONAL(USE_EFIVAR, test x$with_efiblob = xyes)
+ 
+ dnl When bumping the libsoup-2.4 dependency, remember to bump
+ dnl SOUP_VERSION_MIN_REQUIRED and SOUP_VERSION_MAX_ALLOWED in
+diff --git a/src/libostree/ostree-sysroot.c b/src/libostree/ostree-sysroot.c
+index 2612807..df27c96 100644
+--- a/src/libostree/ostree-sysroot.c
++++ b/src/libostree/ostree-sysroot.c
+@@ -28,7 +28,9 @@
+ #include "ostree-bootloader-uboot.h"
+ #include "ostree-bootloader-syslinux.h"
+ #include "ostree-bootloader-grub2.h"
++#ifdef HAVE_EFIVAR
+ #include "ostree-bootloader-efiblob.h"
++#endif
+ 
+ static gboolean
+ find_booted_deployment (OstreeSysroot       *self,
+@@ -1088,6 +1090,7 @@ _ostree_sysroot_query_bootloader (OstreeSysroot     *sysroot,
+       if (!_ostree_bootloader_query (ret_loader, &is_active, cancellable, error))
+         goto out;
+     }
++#ifdef HAVE_EFIVAR
+   if (!is_active)
+     {
+       g_object_unref (ret_loader);
+@@ -1095,6 +1098,7 @@ _ostree_sysroot_query_bootloader (OstreeSysroot     *sysroot,
+       if (!_ostree_bootloader_query (ret_loader, &is_active, cancellable, error))
+         goto out;
+     }
++#endif
+   if (!is_active)
+     g_clear_object (&ret_loader);
+ 
+-- 
+2.7.4
+
