@@ -1,7 +1,7 @@
 SUMMARY = "OSTree commits, downloads, and deploys bootable filesystem trees."
 LICENSE = "GPLv2"
 LIC_FILES_CHKSUM = "file://COPYING;md5=5f30f0716dfdd0d91eb439ebec522ec2"
-DEPENDS = "gpgme glib-2.0 zlib xz e2fsprogs libsoup-2.4 gobject-introspection ca-certificates"
+DEPENDS = "gpgme glib-2.0 zlib xz e2fsprogs libsoup-2.4 gobject-introspection efivar ca-certificates"
 
 inherit pkgconfig autotools systemd
 
@@ -11,6 +11,7 @@ SRCREV = "5893b68ef76b10fc4267faa09d27588f2594b2f6"
 SRC_URI = " \
     gitsm://github.com/ostreedev/ostree;protocol=https \
     file://0001-Added-EFI-boot-loader-support-skeleton.patch \
+    file://0002-Update-to-libefivar-27.patch \
 "
 
 S = "${WORKDIR}/git"
