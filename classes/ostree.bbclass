@@ -7,8 +7,8 @@ do_ostree_repo() {
     # Create an empty repo, if one is not already available
     if [ ! -d "$OSTREE_REPO" ]; then
         mkdir "${OSTREE_REPO}"
-#        ostree --repo="${OSTREE_REPO}" init --mode=archive-z2
+        ostree --repo="${OSTREE_REPO}" init --mode=archive-z2
     fi
 }
 
-#ROOTFS_POSTPROCESS_COMMAND += "do_ostree_repo;"
+ROOTFS_POSTPROCESS_COMMAND += "do_ostree_repo;"
