@@ -1,7 +1,7 @@
-From e68184ecd53f0f4a64bf92b68922bcb472d392c2 Mon Sep 17 00:00:00 2001
+From 34e92e74ff2cd00de6367bd9b38cfc3c59de3727 Mon Sep 17 00:00:00 2001
 From: Ismo Puustinen <ismo.puustinen@intel.com>
 Date: Tue, 13 Sep 2016 16:55:45 +0300
-Subject: [PATCH 3/3] Use autoconf to make efivar optional.
+Subject: [PATCH 2/4] Use autoconf to make efivar optional.
 
 ---
  Makefile-libostree.am          | 10 ++++++++--
@@ -61,10 +61,10 @@ index ee38fcd..5fd494d 100644
  libotutil_la_LIBADD += $(EFIVAR_LIBS) $(EFIBOOT_LIBS)
 +endif
 diff --git a/Makefile-tests.am b/Makefile-tests.am
-index 570d0fa..9b9c95a 100644
+index a268293..7d87c31 100644
 --- a/Makefile-tests.am
 +++ b/Makefile-tests.am
-@@ -167,7 +167,9 @@ endif
+@@ -180,7 +180,9 @@ endif
  common_tests_cflags = $(ostree_bin_shared_cflags) $(OT_INTERNAL_GIO_UNIX_CFLAGS) -I$(srcdir)/libglnx
  common_tests_ldadd = $(ostree_bin_shared_ldadd) $(OT_INTERNAL_GIO_UNIX_LIBS)
  
@@ -75,7 +75,7 @@ index 570d0fa..9b9c95a 100644
  noinst_LTLIBRARIES += libostreetest.la
  libostreetest_la_SOURCES = tests/libostreetest.c
 diff --git a/configure.ac b/configure.ac
-index 44d286c..b79ecc9 100644
+index 82c1828..b9bf3cb 100644
 --- a/configure.ac
 +++ b/configure.ac
 @@ -66,10 +66,18 @@ PKG_CHECK_MODULES(OT_DEP_ZLIB, zlib)
@@ -102,10 +102,10 @@ index 44d286c..b79ecc9 100644
  dnl When bumping the libsoup-2.4 dependency, remember to bump
  dnl SOUP_VERSION_MIN_REQUIRED and SOUP_VERSION_MAX_ALLOWED in
 diff --git a/src/libostree/ostree-sysroot.c b/src/libostree/ostree-sysroot.c
-index 2612807..df27c96 100644
+index e6c44cf..00ea165 100644
 --- a/src/libostree/ostree-sysroot.c
 +++ b/src/libostree/ostree-sysroot.c
-@@ -28,7 +28,9 @@
+@@ -30,7 +30,9 @@
  #include "ostree-bootloader-uboot.h"
  #include "ostree-bootloader-syslinux.h"
  #include "ostree-bootloader-grub2.h"
@@ -115,7 +115,7 @@ index 2612807..df27c96 100644
  
  static gboolean
  find_booted_deployment (OstreeSysroot       *self,
-@@ -1088,6 +1090,7 @@ _ostree_sysroot_query_bootloader (OstreeSysroot     *sysroot,
+@@ -1092,6 +1094,7 @@ _ostree_sysroot_query_bootloader (OstreeSysroot     *sysroot,
        if (!_ostree_bootloader_query (ret_loader, &is_active, cancellable, error))
          goto out;
      }
@@ -123,7 +123,7 @@ index 2612807..df27c96 100644
    if (!is_active)
      {
        g_object_unref (ret_loader);
-@@ -1095,6 +1098,7 @@ _ostree_sysroot_query_bootloader (OstreeSysroot     *sysroot,
+@@ -1099,6 +1102,7 @@ _ostree_sysroot_query_bootloader (OstreeSysroot     *sysroot,
        if (!_ostree_bootloader_query (ret_loader, &is_active, cancellable, error))
          goto out;
      }

@@ -1,17 +1,20 @@
-From bc44a5e1329a044cd7534bf4ac26ebfb0a8f63aa Mon Sep 17 00:00:00 2001
+From 36b4e39aa1a6f7bbb40d32c0376d27385a322b1f Mon Sep 17 00:00:00 2001
 From: Ismo Puustinen <ismo.puustinen@intel.com>
 Date: Thu, 8 Sep 2016 14:13:31 +0300
-Subject: [PATCH] Added EFI boot loader support skeleton.
+Subject: [PATCH 1/4] Added EFI boot loader support skeleton.
 
+The EFI boot loader handles the case where there is no real boot loader,
+but the UEFI BIOS just executes an EFI blob, which contains (typically)
+kernel, initramdisk, and kernel command line.
 ---
- Makefile-libostree.am                     |   6 ++
+ Makefile-libostree.am                     |   6 +
  Makefile-otutil.am                        |   2 +
  Makefile-tests.am                         |   2 +
  configure.ac                              |   6 +-
- src/libostree/ostree-bootloader-efiblob.c | 173 ++++++++++++++++++++++++++++++
- src/libostree/ostree-bootloader-efiblob.h |  40 +++++++
+ src/libostree/ostree-bootloader-efiblob.c | 214 ++++++++++++++++++++++++++++++
+ src/libostree/ostree-bootloader-efiblob.h |  40 ++++++
  src/libostree/ostree-sysroot.c            |   8 ++
- 7 files changed, 236 insertions(+), 1 deletion(-)
+ 7 files changed, 277 insertions(+), 1 deletion(-)
  create mode 100644 src/libostree/ostree-bootloader-efiblob.c
  create mode 100644 src/libostree/ostree-bootloader-efiblob.h
 
@@ -50,10 +53,10 @@ index ee892a7..ee38fcd 100644
 +
 +libotutil_la_LIBADD += $(EFIVAR_LIBS) $(EFIBOOT_LIBS)
 diff --git a/Makefile-tests.am b/Makefile-tests.am
-index 7d3f401..570d0fa 100644
+index 6c2301c..a268293 100644
 --- a/Makefile-tests.am
 +++ b/Makefile-tests.am
-@@ -167,6 +167,8 @@ endif
+@@ -180,6 +180,8 @@ endif
  common_tests_cflags = $(ostree_bin_shared_cflags) $(OT_INTERNAL_GIO_UNIX_CFLAGS) -I$(srcdir)/libglnx
  common_tests_ldadd = $(ostree_bin_shared_ldadd) $(OT_INTERNAL_GIO_UNIX_LIBS)
  
@@ -63,7 +66,7 @@ index 7d3f401..570d0fa 100644
  libostreetest_la_SOURCES = tests/libostreetest.c
  libostreetest_la_CFLAGS = $(common_tests_cflags) -I $(srcdir)/tests
 diff --git a/configure.ac b/configure.ac
-index b739d2a..44d286c 100644
+index 7a6fdf1..82c1828 100644
 --- a/configure.ac
 +++ b/configure.ac
 @@ -30,7 +30,6 @@ CC_CHECK_FLAGS_APPEND([WARN_CFLAGS], [CFLAGS], [\
@@ -88,10 +91,10 @@ index b739d2a..44d286c 100644
  dnl Makefile.am
 diff --git a/src/libostree/ostree-bootloader-efiblob.c b/src/libostree/ostree-bootloader-efiblob.c
 new file mode 100644
-index 0000000..700f518
+index 0000000..f5f0fab
 --- /dev/null
 +++ b/src/libostree/ostree-bootloader-efiblob.c
-@@ -0,0 +1,173 @@
+@@ -0,0 +1,214 @@
 +/* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*-
 + *
 + * Copyright (C) 2013 Colin Walters <walters@verbum.org>
@@ -139,12 +142,49 @@ index 0000000..700f518
 +                                GError          **error)
 +{
 +  OstreeBootloaderEfiblob *self = OSTREE_BOOTLOADER_EFIBLOB (bootloader);
++  char *variable = NULL;
++  efi_guid_t *guid = NULL;
++  uint32_t attributes = 0;
 +
-+  /* TODO: set "out_is_active" to true if we are using the EFI blob method for
-+   * system boot.
++  if (!efi_variables_supported())
++    return TRUE;
++
++  /* Set "out_is_active" to true if we are using the EFI blob method for
++   * system boot. Figure this out by seeing if there are "ostree-[0|1]" boot
++   * variables in EFI.
 +   */
 +
-+  *out_is_active = TRUE;
++  while (efi_get_next_variable_name(&guid, &variable)) {
++
++    if (strncmp(variable, "Boot", 4) == 0 && strlen(variable) == 8) {
++      char *buf, *endptr = NULL;
++      size_t bufsize;
++      int r;
++      uint16_t num;
++
++      num = strtoul(variable + 4, &endptr, 16);
++
++      if (endptr == variable + 4 || *endptr != '\0')
++        continue;
++
++      r = efi_get_variable(EFI_GLOBAL_GUID, variable, (uint8_t **) &buf,
++          &bufsize, &attributes);
++      if (r != 0)
++        continue;
++
++      efi_load_option *opt = (efi_load_option *) buf;
++
++      if (strcmp((const char *) efi_loadopt_desc(opt, bufsize), "ostree-0") == 0 ||
++          strcmp((const char *) efi_loadopt_desc(opt, bufsize), "ostree-1") == 0) {
++        *out_is_active = TRUE;
++        free(buf);
++        return TRUE;
++      }
++      free(buf);
++    }
++  }
++
++  *out_is_active = FALSE;
 +  return TRUE;
 +}
 +
@@ -193,6 +233,7 @@ index 0000000..700f518
 +      size_t bufsize;
 +      int r;
 +      uint16_t num;
++      uint32_t old_attributes = 0;
 +      uint32_t attributes = EFI_VARIABLE_RUNTIME_ACCESS |
 +            EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_NON_VOLATILE;
 +
@@ -202,7 +243,7 @@ index 0000000..700f518
 +        continue;
 +
 +      r = efi_get_variable(EFI_GLOBAL_GUID, variable, (uint8_t **) &buf,
-+          &bufsize, &attributes);
++          &bufsize, &old_attributes);
 +      if (r != 0)
 +        continue;
 +
@@ -219,6 +260,9 @@ index 0000000..700f518
 +          free(buf);
 +          return FALSE;
 +        }
++
++        free(buf);
++        return TRUE; /* found and set the correct boot target, end the search */
 +      }
 +      free(buf);
 +    }
@@ -312,10 +356,10 @@ index 0000000..4900187
 +
 +G_END_DECLS
 diff --git a/src/libostree/ostree-sysroot.c b/src/libostree/ostree-sysroot.c
-index 37063e2..2612807 100644
+index 608d4cf..e6c44cf 100644
 --- a/src/libostree/ostree-sysroot.c
 +++ b/src/libostree/ostree-sysroot.c
-@@ -28,6 +28,7 @@
+@@ -30,6 +30,7 @@
  #include "ostree-bootloader-uboot.h"
  #include "ostree-bootloader-syslinux.h"
  #include "ostree-bootloader-grub2.h"
@@ -323,7 +367,7 @@ index 37063e2..2612807 100644
  
  static gboolean
  find_booted_deployment (OstreeSysroot       *self,
-@@ -1088,6 +1089,13 @@ _ostree_sysroot_query_bootloader (OstreeSysroot     *sysroot,
+@@ -1092,6 +1093,13 @@ _ostree_sysroot_query_bootloader (OstreeSysroot     *sysroot,
          goto out;
      }
    if (!is_active)

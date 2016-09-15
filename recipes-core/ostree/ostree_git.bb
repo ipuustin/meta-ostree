@@ -5,14 +5,15 @@ DEPENDS = "gpgme glib-2.0 zlib xz e2fsprogs libsoup-2.4 gobject-introspection ef
 
 inherit pkgconfig autotools systemd
 
-PV = "2016.10+gitr${SRCPV}"
-SRCREV = "5893b68ef76b10fc4267faa09d27588f2594b2f6"
+PV = "2016.12+gitr${SRCPV}"
+SRCREV = "24ac4ff190a96de47fab73d81c257f089c0e2020"
 
 SRC_URI = " \
     gitsm://github.com/ostreedev/ostree;protocol=https \
     file://0001-Added-EFI-boot-loader-support-skeleton.patch \
-    file://0002-Update-to-libefivar-27.patch \
-    file://0003-Use-autoconf-to-make-efivar-optional.patch \
+    file://0002-Use-autoconf-to-make-efivar-optional.patch \
+    file://0003-Added-efi-change-boot.patch \
+    file://0004-Update-to-libefivar-27.patch \
 "
 
 S = "${WORKDIR}/git"

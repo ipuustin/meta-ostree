@@ -1,0 +1,222 @@
+From ae14b1aa10e7fcafe8a4a0e2d2886cce3248d96d Mon Sep 17 00:00:00 2001
+From: Ismo Puustinen <ismo.puustinen@intel.com>
+Date: Tue, 8 Nov 2016 15:01:43 +0200
+Subject: [PATCH 3/4] Added efi-change-boot.
+
+Run this binary after a successful boot. It commits the EFI boot target
+to the target that just succeeded in booting. Otherwise the next boot
+will be done to the previous working EFI boot target.
+---
+ Makefile-efi-change-boot.am           |  27 ++++++
+ Makefile.am                           |   1 +
+ src/efi-change-boot/efi-change-boot.c | 152 ++++++++++++++++++++++++++++++++++
+ 3 files changed, 180 insertions(+)
+ create mode 100644 Makefile-efi-change-boot.am
+ create mode 100644 src/efi-change-boot/efi-change-boot.c
+
+diff --git a/Makefile-efi-change-boot.am b/Makefile-efi-change-boot.am
+new file mode 100644
+index 0000000..98da92f
+--- /dev/null
++++ b/Makefile-efi-change-boot.am
+@@ -0,0 +1,27 @@
++# Copyright (C) 2016 Intel Corp.
++#
++# This library is free software; you can redistribute it and/or
++# modify it under the terms of the GNU Lesser General Public
++# License as published by the Free Software Foundation; either
++# version 2 of the License, or (at your option) any later version.
++#
++# This library is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++# Lesser General Public License for more details.
++#
++# You should have received a copy of the GNU Lesser General Public
++# License along with this library; if not, write to the
++# Free Software Foundation, Inc., 59 Temple Place - Suite 330,
++# Boston, MA 02111-1307, USA.
++
++if USE_EFIVAR
++bin_PROGRAMS += efi-change-boot
++
++efi_change_boot_SOURCES = \
++    src/efi-change-boot/efi-change-boot.c \
++    $(NULL)
++
++efi_change_boot_CFLAGS = $(AM_CFLAGS) $(EFIVAR_CFLAGS) $(EFIBOOT_CFLAGS)
++efi_change_boot_LDADD = $(AM_LIBS) $(EFIVAR_LIBS) $(EFIBOOT_LIBS)
++endif
+diff --git a/Makefile.am b/Makefile.am
+index 2911a0c..981be44 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -78,6 +78,7 @@ include Makefile-otutil.am
+ include Makefile-libostree.am
+ include Makefile-ostree.am
+ include Makefile-switchroot.am
++include Makefile-efi-change-boot.am
+ if BUILDOPT_FUSE
+ include src/rofiles-fuse/Makefile-inc.am
+ endif
+diff --git a/src/efi-change-boot/efi-change-boot.c b/src/efi-change-boot/efi-change-boot.c
+new file mode 100644
+index 0000000..c24d363
+--- /dev/null
++++ b/src/efi-change-boot/efi-change-boot.c
+@@ -0,0 +1,152 @@
++/* -*- c-file-style: "gnu" -*-
++ * Commit current EFI boot target after a successful boot.
++ *
++ * Copyright (C) 2016 Intel Corp.
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the
++ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
++ * Boston, MA 02111-1307, USA.
++ */
++
++#include <stdlib.h>
++#include <stdio.h>
++#include <stdbool.h>
++#include <string.h>
++#include <ctype.h>
++
++#include <efivar.h>
++#include <efiboot-loadopt.h>
++
++/* Run this command after a successful boot to save the current boot
++ * order.
++ *
++ * When an Ostree update is performed, the EFI target that corresponds
++ * to the updated root filesystem gets run once using the EFI "BootNext"
++ * variable. The boot target specified in "BootNext" gets booted exactly
++ * once. If the boot fails, the system boots to the previous (known to
++ * work) target during the next boot. However, if the boot succeeds,
++ * this program is run. It finds out the current boot target (which we
++ * now know is working) and the current boot order. The program then
++ * sets the "BootOrder" EFI variable to have the current target as the
++ * first target and the rest of the targets following it with the
++ * established order.
++ */
++
++#define BOOTORDER_BUFSIZE 512
++
++#if 0
++void dump_boot_order(uint16_t *order, uint n_items)
++{
++    int i;
++
++    for (i = 0; i < n_items; i++) {
++        printf("%04x ", order[i]);
++    }
++    printf("\n");
++}
++#endif
++
++int main(int argc, char **argv)
++{
++    char *buf;
++    size_t bufsize;
++    int r;
++
++    uint16_t current = 0;
++
++    /* save one space for the new target */
++    uint16_t bootorder[(BOOTORDER_BUFSIZE/sizeof(uint16_t))+1];
++    uint bootorder_values = 0;
++    uint bi;
++    uint32_t old_attributes = 0;
++
++    if (!efi_variables_supported())
++        return -1;
++
++    /* Find out the current boot target */
++
++    r = efi_get_variable(EFI_GLOBAL_GUID, "BootCurrent", (uint8_t **) &buf, &bufsize, &old_attributes);
++    if (r != 0) {
++        printf("error getting variable: %s\n", strerror(errno));
++        exit(1);
++    }
++
++    if (bufsize != sizeof(uint16_t)) {
++        printf("wrong size for BootCurrent variable: %lu\n", bufsize);
++        exit(1);
++    }
++
++    memcpy(&current, buf, 2);
++    free(buf);
++
++    /* Find out the current boot order */
++
++    r = efi_get_variable(EFI_GLOBAL_GUID, "BootOrder", (uint8_t **) &buf, &bufsize, &old_attributes);
++    if (r != 0) {
++        printf("error getting variable: %s\n", strerror(errno));
++        exit(1);
++    }
++
++#if 0
++    printf("Current boot order:\n");
++    dump_boot_order((uint16_t) buf, bufsize/2);
++#endif
++
++    bootorder_values = bufsize/sizeof(uint16_t);
++    if (bootorder_values >= BOOTORDER_BUFSIZE/sizeof(uint16_t)) {
++        printf("too many EFI bootorder values: %u\n", bootorder_values);
++        exit(1);
++    }
++
++    memcpy(bootorder, buf, bufsize);
++    free(buf);
++
++    /* find where the current boot target is in the boot order */
++
++    for (bi = 0; bi < bootorder_values && bootorder[bi] != current; bi++);
++
++    if (bi != 0) {
++        if (bi == bootorder_values) {
++            /* current target wasn't found in the boot order list, need to
++            * add it to the list */
++            bootorder_values++;
++        }
++
++        /* Copy everything before the current target one place towards
++         * the end of the array. If the target wasn't in the boot order,
++         * move everything towards the end. */
++        memmove(&bootorder[1], &bootorder[0], bi*sizeof(uint16_t));
++
++        /* put the current boot target in front */
++        bootorder[0] = current;
++
++#if 0
++        printf("New boot order:\n");
++        dump_boot_order((uint16_t) buf, bufsize/2);
++#endif
++
++        /* set the bootorder variable */
++        r = efi_set_variable(EFI_GLOBAL_GUID, "BootOrder",
++                (uint8_t *) bootorder, bootorder_values*sizeof(uint16_t),
++                old_attributes, 0644);
++        if (r != 0) {
++            printf("error setting variable: %s\n", strerror(errno));
++            exit(1);
++        }
++    }
++    /* else the current target is already in the front of the boot
++     * order, no need to do anything */
++
++    return 0;
++}
+-- 
+2.7.4
+
