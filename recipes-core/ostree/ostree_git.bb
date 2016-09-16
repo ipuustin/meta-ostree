@@ -1,7 +1,7 @@
 SUMMARY = "OSTree commits, downloads, and deploys bootable filesystem trees."
 LICENSE = "GPLv2"
 LIC_FILES_CHKSUM = "file://COPYING;md5=5f30f0716dfdd0d91eb439ebec522ec2"
-DEPENDS = "gpgme glib-2.0 zlib xz e2fsprogs libsoup-2.4 gobject-introspection"
+DEPENDS = "gpgme glib-2.0 zlib xz e2fsprogs libsoup-2.4 gobject-introspection ca-certificates"
 
 inherit pkgconfig autotools systemd
 
