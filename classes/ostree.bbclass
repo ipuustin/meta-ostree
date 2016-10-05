@@ -32,7 +32,7 @@ do_ostree_repo() {
     cp -a "${IMAGE_ROOTFS}/boot" "${OSTREE_SYSROOT_DIR}"
 
     rm -rf "${IMAGE_ROOTFS}"
-    ln -s "${OSTREE_SYSROOT_DIR}" "${IMAGE_ROOTFS}"
+    ln -s `realpath -sm "${OSTREE_SYSROOT_DIR}"` "${IMAGE_ROOTFS}"
 }
 
 ROOTFS_POSTPROCESS_COMMAND += "do_ostree_repo;"
