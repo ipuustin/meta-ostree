@@ -10,6 +10,7 @@ LIC_FILES_CHKSUM = "file://COPYING;md5=94d55d512a9ba36caa9b7df079bae19f"
 DEPENDS = "pciutils \
     usbutils"
 COMPATIBLE_HOST = "(i.86|x86_64|arm|aarch64).*-linux"
+ERROR_QA_remove="ldflags"
 
 PR="r1"
 
