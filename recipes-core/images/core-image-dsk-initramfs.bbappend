@@ -5,4 +5,5 @@ PACKAGE_INSTALL_append = " \
     efivar \
     efibootmgr \
     initramfs-module-ostree \
+    lshw \
 "
