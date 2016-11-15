@@ -30,6 +30,7 @@ SYSTEMD_SERVICE_${PN} = "ostree-prepare-root.service ostree-remount.service"
 EXTRA_OECONF_class-target += "--enable-man=no --enable-rofiles-fuse=no"
 DEPENDS_class-target += "gpgme glib-2.0 zlib xz e2fsprogs libsoup-2.4 gobject-introspection efivar"
 
+RDEPENDS_${PN}_class-target += " efibootmgr lshw"
 
 # Fuse is in meta-openembedded, and does not support native builds by
 # default -- uncomment only if fuse-based optimization needed.
@@ -40,5 +41,4 @@ DEPENDS_class-target += "gpgme glib-2.0 zlib xz e2fsprogs libsoup-2.4 gobject-in
 EXTRA_OECONF_class-native += "--enable-man=no --enable-rofiles-fuse=no --enable-otmpfile=no"
 
 FILES_${PN} += "/usr/share/gir-1.0 /usr/lib/girepository-1.0"
-
 BBCLASSEXTEND = "native"
