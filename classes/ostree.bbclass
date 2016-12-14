@@ -26,7 +26,7 @@ do_ostree_repo() {
     ostree --repo="${OSTREE_ARCHIVE_REPO}" init --mode=archive-z2
     ostree --repo="${OSTREE_ARCHIVE_REPO}" commit -s 'build' -b "${BRANCH_NAME}" --tree=dir="${IMAGE_ROOTFS}"
     ostree --repo="${OSTREE_BARE_REPO}" pull-local --untrusted "${OSTREE_ARCHIVE_REPO}" --remote="${REMOTE}" "${BRANCH_NAME}"
-    strace ostree admin deploy --sysroot="${OSTREE_SYSROOT_DIR}" --os="${OS_NAME}" "${REMOTE}:${BRANCH_NAME}"
+    ostree admin deploy --sysroot="${OSTREE_SYSROOT_DIR}" --os="${OS_NAME}" "${REMOTE}:${BRANCH_NAME}"
 
     # hack
     cp -a "${IMAGE_ROOTFS}/boot" "${OSTREE_SYSROOT_DIR}"
