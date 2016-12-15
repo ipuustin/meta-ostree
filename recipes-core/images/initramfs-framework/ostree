@@ -8,5 +8,25 @@ ostree_enabled() {
 
 ostree_run() {
     mount -t efivarfs efivarfs /sys/firmware/efi/efivars
-    mount --bind /rootfs/ostree/deploy/poky/deploy/*.0 /rootfs/
+
+    # make root mount private, because moving mount points under a
+    # shared mount is not possible
+
+    mount --make-private /
+
+    # mount root fs to a temporary location
+    mkdir rootfs.tmp
+    mount --bind /rootfs/ostree/deploy/DISTRONAME/deploy/*.0 /rootfs.tmp/
+
+    # mount common /var
+    mount --bind /rootfs/ostree/deploy/DISTRONAME/var /rootfs.tmp/var
+
+    # mount singleton /boot
+    # mount --bind /rootfs/boot /rootfs.tmp/boot
+
+    # mount "real" root fs to /sysroot
+    mount --bind /rootfs /rootfs.tmp/sysroot
+
+    # move the ready root fs tree to the final location
+    mount --move /rootfs.tmp /rootfs
 }

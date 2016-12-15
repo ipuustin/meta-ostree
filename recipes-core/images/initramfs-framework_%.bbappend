@@ -13,6 +13,7 @@ PACKAGES_append = " initramfs-module-ostree "
 
 do_install_append() {
     # ostree
+    sed -i 's/DISTRONAME/${DISTRO}/' ${WORKDIR}/ostree
     install -m 0755 ${WORKDIR}/ostree ${D}/init.d/95-ostree
 
     install -d -m 0755 ${D}/usr/bin
