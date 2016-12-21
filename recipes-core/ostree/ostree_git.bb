@@ -10,6 +10,7 @@ SRCREV = "5893b68ef76b10fc4267faa09d27588f2594b2f6"
 
 SRC_URI = " \
     gitsm://github.com/ostreedev/ostree;protocol=https \
+    file://0001-build-allow-controlling-gobject-introspection-data-g.patch \
 "
 
 S = "${WORKDIR}/git"
@@ -27,7 +28,13 @@ EOF
 
 SYSTEMD_SERVICE_${PN} = "ostree-prepare-root.service ostree-remount.service"
 
-EXTRA_OECONF_class-target += "--enable-man=no --enable-rofiles-fuse=no"
+EXTRA_OECONF_class-target += " \
+  --disable-man \
+  --disable-rofiles-fuse \
+  --disable-otmpfile \
+  --without-libarchive \
+  --disable-gobject-introspection \
+"
 DEPENDS_class-target += "gpgme glib-2.0 zlib xz e2fsprogs libsoup-2.4 gobject-introspection efivar"
 
 RDEPENDS_${PN}_class-target += " efibootmgr lshw"
@@ -38,7 +45,15 @@ RDEPENDS_${PN}_class-target += " efibootmgr lshw"
 # DEPENDS_class-native += "fuse"
 # EXTRA_OECONF_class-native += "--enable-man=no --enable-rofiles-fuse=yes"
 
-EXTRA_OECONF_class-native += "--enable-man=no --enable-rofiles-fuse=no --enable-otmpfile=no"
+EXTRA_OECONF_class-native += " \
+  --disable-man \
+  --disable-rofiles-fuse \
+  --disable-otmpfile \
+  --without-libarchive \
+  --disable-gobject-introspection \
+"
+
+
 
 FILES_${PN} += "/usr/share/gir-1.0 /usr/lib/girepository-1.0"
 BBCLASSEXTEND = "native"
