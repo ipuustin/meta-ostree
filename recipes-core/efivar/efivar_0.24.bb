@@ -27,6 +27,9 @@ S = "${WORKDIR}/git"
 # Setting CROSS_COMPILE breaks pkgconfig, so just set AR
 EXTRA_OEMAKE = "AR=${TARGET_PREFIX}gcc-ar"
 
+# Compile with -fPIC instead of -fPIE
+SECURITY_CFLAGS = "${SECURITY_NO_PIE_CFLAGS} ${SECURITY_PIC_CFLAGS}"
+
 do_compile_prepend() {
     sed -i -e s:-Werror::g ${S}/gcc.specs
 }
