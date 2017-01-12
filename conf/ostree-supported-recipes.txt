@@ -1,0 +1,4 @@
+efibootmgr@meta-ostree
+efivar@meta-ostree
+lshw@meta-ostree
+ostree@meta-ostree
