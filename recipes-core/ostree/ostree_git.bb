@@ -1,15 +1,16 @@
 SUMMARY = "OSTree commits, downloads, and deploys bootable filesystem trees."
 LICENSE = "GPLv2"
 LIC_FILES_CHKSUM = "file://COPYING;md5=5f30f0716dfdd0d91eb439ebec522ec2"
-DEPENDS = "gpgme glib-2.0 zlib xz e2fsprogs libcap libsoup-2.4 gobject-introspection"
+DEPENDS = "gpgme glib-2.0 zlib xz e2fsprogs libsoup-2.4 gobject-introspection ca-certificates"
 
 inherit pkgconfig autotools systemd
 
-PV = "2016.9+gitr${SRCPV}"
-SRCREV = "2aacc6912b78e7d3158f072cd9c1b3c5d0bddc22"
+PV = "2016.10+gitr${SRCPV}"
+SRCREV = "5893b68ef76b10fc4267faa09d27588f2594b2f6"
 
 SRC_URI = " \
     gitsm://github.com/ostreedev/ostree;protocol=https \
+    file://0001-build-allow-controlling-gobject-introspection-data-g.patch \
 "
 
 S = "${WORKDIR}/git"
@@ -27,8 +28,16 @@ EOF
 
 SYSTEMD_SERVICE_${PN} = "ostree-prepare-root.service ostree-remount.service"
 
-EXTRA_OECONF_class-target += "--enable-man=no --enable-rofiles-fuse=no"
-DEPENDS_class-target += "gpgme glib-2.0 zlib xz e2fsprogs libcap libsoup-2.4 gobject-introspection"
+EXTRA_OECONF_class-target += " \
+  --disable-man \
+  --disable-rofiles-fuse \
+  --disable-otmpfile \
+  --without-libarchive \
+  --disable-gobject-introspection \
+"
+DEPENDS_class-target += "gpgme glib-2.0 zlib xz e2fsprogs libsoup-2.4 gobject-introspection efivar"
+
+RDEPENDS_${PN}_class-target += " efibootmgr lshw"
 
 # Fuse is in meta-openembedded, and does not support native builds by
 # default -- uncomment only if fuse-based optimization needed.
@@ -36,8 +45,15 @@ DEPENDS_class-target += "gpgme glib-2.0 zlib xz e2fsprogs libcap libsoup-2.4 gob
 # DEPENDS_class-native += "fuse"
 # EXTRA_OECONF_class-native += "--enable-man=no --enable-rofiles-fuse=yes"
 
-EXTRA_OECONF_class-native += "--enable-man=no --enable-rofiles-fuse=no"
+EXTRA_OECONF_class-native += " \
+  --disable-man \
+  --disable-rofiles-fuse \
+  --disable-otmpfile \
+  --without-libarchive \
+  --disable-gobject-introspection \
+"
+
+
 
 FILES_${PN} += "/usr/share/gir-1.0 /usr/lib/girepository-1.0"
-
 BBCLASSEXTEND = "native"

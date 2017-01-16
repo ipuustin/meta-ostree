@@ -1,0 +1,30 @@
+From 5f05219bf2e1f3aa8af2d8896b80f74be7192064 Mon Sep 17 00:00:00 2001
+From: Krisztian Litkey <krisztian.litkey@intel.com>
+Date: Wed, 4 Jan 2017 11:33:40 +0200
+Subject: [PATCH 1/1] ports/linux/guts: special-case fcntl F_OFD_*, to get rid
+ of warnings.
+
+Signed-off-by: Krisztian Litkey <krisztian.litkey@intel.com>
+---
+ ports/linux/guts/fcntl.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/ports/linux/guts/fcntl.c b/ports/linux/guts/fcntl.c
+index 639fd24..35dc0aa 100644
+--- a/ports/linux/guts/fcntl.c
++++ b/ports/linux/guts/fcntl.c
+@@ -50,6 +50,11 @@
+ 	case F_GETLK:
+ 	case F_SETLK:
+ 	case F_SETLKW:
++#ifdef F_OFD_SETLK
++	case F_OFD_SETLK:
++	case F_OFD_GETLK:
++	case F_OFD_SETLKW:
++#endif
+ 		rc = real_fcntl(fd, cmd, lock);
+ 		break;
+ #if defined(F_GETLK64) && (F_GETLK64 != F_GETLK)
+-- 
+2.9.3
+
