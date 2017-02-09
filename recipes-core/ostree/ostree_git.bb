@@ -35,9 +35,14 @@ EXTRA_OECONF_class-target += " \
   --without-libarchive \
   --disable-gobject-introspection \
 "
-DEPENDS_class-target += "gpgme glib-2.0 zlib xz e2fsprogs libsoup-2.4 gobject-introspection efivar"
 
-RDEPENDS_${PN}_class-target += " efibootmgr lshw"
+DEPENDS_class-target += " \
+    gpgme glib-2.0 zlib xz e2fsprogs libsoup-2.4 \
+    gobject-introspection efivar \
+"
+
+RDEPENDS_${PN}_class-target += "gnupg efibootmgr lshw"
+RDEPENDS_${PN}_class-native += "gnupg"
 
 # Fuse is in meta-openembedded, and does not support native builds by
 # default -- uncomment only if fuse-based optimization needed.
