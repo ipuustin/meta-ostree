@@ -5,12 +5,13 @@ DEPENDS = "gpgme glib-2.0 zlib xz e2fsprogs libsoup-2.4 gobject-introspection ca
 
 inherit pkgconfig autotools systemd
 
-PV = "2016.10+gitr${SRCPV}"
-SRCREV = "5893b68ef76b10fc4267faa09d27588f2594b2f6"
+PV = "2017.1+gitr${SRCPV}"
+SRCREV = "6517a8a27a1386e7cb5482e7cb2919fe92721ccf"
 
 SRC_URI = " \
     gitsm://github.com/ostreedev/ostree;protocol=https \
     file://0001-build-allow-controlling-gobject-introspection-data-g.patch \
+    file://0001-libostree-fix-missing-macros-when-compiling-without-.patch \
 "
 
 S = "${WORKDIR}/git"
