@@ -57,6 +57,7 @@ EXTRA_OECONF_class-native += " \
   --disable-otmpfile \
   --without-libarchive \
   --disable-gobject-introspection \
+  --with-builtin-grub2-mkconfig \
 "
 
 
